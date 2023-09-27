@@ -1,4 +1,4 @@
-function SalienceTutorial(wPtr,rect, tiltsSet,contrastsSet)
+function SalienceTutorial(wPtr,rect, tiltsSet,contrastsSet, condition,convertionRate)
 % This function runs the tutorial for the SALIENCE-VALUE EXPERIMENT
     
     % waiting time
@@ -33,7 +33,7 @@ function SalienceTutorial(wPtr,rect, tiltsSet,contrastsSet)
     Screen('TextSize', wPtr, 30);
 
     % screen 1
-    DrawFormattedText(wPtr,['Press any key to start the tutorial for the first part of the experiment,' '\n\n' 'and to continue from page to page.'],...
+    DrawFormattedText(wPtr,['Press any key to start the tutorial for the experiment,' '\n\n' 'and to continue from page to page.'],...
         'center','center');
     Screen('Flip',wPtr);
     WaitSecs(waitTime);
@@ -107,7 +107,7 @@ function SalienceTutorial(wPtr,rect, tiltsSet,contrastsSet)
     WaitSecs(3*waitTime);
 
     % screen 4
-     DrawFormattedText(wPtr,['How to determine which patch to choose?' '\n\n' ' First, the patches will have 4 slightly different possible orientations as shown below (look carefully):'],...
+     DrawFormattedText(wPtr,['How to determine which patch to choose?' '\n\n' ' First, the patches can have 4 slightly different possible orientations as shown below (look carefully):'],...
         'center',rect(4)*1.5/6);
 
      Screen('DrawTexture', wPtr, gabortex, [], infoRect1, 90+tiltsSet(4), [], [], [], [],...
@@ -121,14 +121,15 @@ function SalienceTutorial(wPtr,rect, tiltsSet,contrastsSet)
 
      Screen('Flip',wPtr);
 
-     current_display = Screen('GetImage',wPtr);
-     imwrite(current_display, 'screenshot1.png');
+     % % take a screenshot
+     % current_display = Screen('GetImage',wPtr);
+     % imwrite(current_display, 'screenshot1.png');
 
      WaitSecs(waitTime);
      KbWait([],2);
 
       % screen 5
-     DrawFormattedText(wPtr,['Second, they will have 4 possible slightly different brightness levels,' '\n\n' 'from dark to bright as shown below (look carefully):'],...
+     DrawFormattedText(wPtr,['Second, they can have 4 possible slightly different brightness levels,' '\n\n' 'from dark to bright as shown below (look carefully):'],...
         'center',rect(4)*1.5/6);
 
      Screen('DrawTexture', wPtr, gabortex, [], infoRect1, 90+tiltsSet(2), [], [], [], [],...
@@ -141,32 +142,52 @@ function SalienceTutorial(wPtr,rect, tiltsSet,contrastsSet)
          kPsychDontDoRotation, [phase+180, freq, sc, contrastsSet(4), aspectratio, 0, 0, 0]);
 
      Screen('Flip',wPtr);
-
-     current_display = Screen('GetImage',wPtr);
-     imwrite(current_display, 'screenshot2.png');
+    
+     % % take a screenshot
+     % current_display = Screen('GetImage',wPtr);
+     % imwrite(current_display, 'screenshot2.png');
 
      WaitSecs(waitTime);
      KbWait([],2);
 
-    % screen 6
-    DrawFormattedText(wPtr,['Each patch can be worth 1, 2, 3, or 4 points,'...
-        '\n\n' 'You will play 4 blocks of trials, and in each block the values of the patches'...
-        '\n\n' 'will depend on either orientation or brightness.'...
-        '\n\n' 'In one block, brighter patches will give more points.'...
-        '\n\n' 'In another block, darker patches will give more points.'...
-        '\n\n' 'In the other two blocks, the value will depend only on the orientation.'...
-        '\n\n' 'Before each block, you will be explicitly told which patches give you more points.'],...
-        'center','center');
-    Screen('Flip',wPtr);
-    WaitSecs(waitTime);
-    KbWait([],2);
+     % screen 6
+
+     if condition == 1
+
+         DrawFormattedText(wPtr,['Each patch can be worth 1, 2, 3, or 4 points,'...
+             '\n\n' 'You will play 4 blocks of trials, and in each block the values of the patches'...
+             '\n\n' 'will depend on either orientation or brightness.'],...
+             'center','center');
+
+     elseif condition == 2
+
+         DrawFormattedText(wPtr,['Each patch can be worth 0 or 1 points.'...
+             '\n\n' 'You will play 4 blocks of trials, and in each block the values of the patches'...
+             '\n\n' 'will depend on either orientation or brightness.'],...
+             'center','center');
+
+     end
+
+     Screen('Flip',wPtr);
+     WaitSecs(waitTime);
+     KbWait([],2);
+
+
+     DrawFormattedText(wPtr,[ 'In one block, brighter patches will be more valuable.'...
+         '\n\n' 'In another block, darker patches will be more valuable.'...
+         '\n\n' 'In the other two blocks, the value will depend only on the orientation.'...
+         '\n\n' 'Before each block, you will be explicitly told which patches are more valuable.'], ...
+     'center','center');
+     Screen('Flip',wPtr);
+     WaitSecs(waitTime);
+     KbWait([],2);
 
     % screen 6
     DrawFormattedText(wPtr,['Each block will last about 10-15 minutes.'...
         '\n\n' 'In each trial, you must respond within 2 seconds, or you will receive no points.'...
         '\n\n' 'When you choose a patch, you will immediately see how many points you got.'...
         '\n\n' 'At the end of the experiment, the sum of your points will be converted to your money bonus,'....
-        '\n\n' 'with 500 points = 1 extra pound.'...
+        '\n\n' 'with ' num2str(convertionRate) ' points = 1 extra pound.'...
         '\n\n' 'If you have any questions, ask the experimenter now.'...
         '\n\n' 'Good luck!'],...
         'center','center');
