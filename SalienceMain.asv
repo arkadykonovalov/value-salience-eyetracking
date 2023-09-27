@@ -1,0 +1,595 @@
+% SCRIPT TO RUN SALIENCE-VALUE EXPERIMENT
+% by Arkady Konovalov (arkady.konovalov@gmail.com)
+% Version 1.0
+
+% TODO:
+% test the eye-tracking code, figure out subject ids
+
+% Conditions description:
+% 1: Salience plus
+% 2: Salience minus
+% 1: Orientation left
+% 2: Orientation right
+
+% Clear the workspace and the screen
+sca;
+close all;
+clearvars;
+
+%
+temp = dir('data/csv/*.csv'); % check how many csv files in the datafolder
+sessID = size(temp,1) + 1; % assign session ID 
+
+testTrials = 0;  % put number of trials > 0 to run for only that number of trials
+
+
+% EXPERIMENT PARAMETERS
+
+% EYE-TRACKING
+eyeTracking = false;
+
+% Stimuli parameters
+sMean = 90;
+sStep = 8;
+
+% tilts and contrasts
+tiltsSet = [sMean-sStep*3/2 sMean-sStep/2 sMean+sStep/2  sMean+sStep*3/2]; % set of tilts 1 -  4
+contrastsSet = [sMean-sStep*3/2 sMean-sStep/2 sMean+sStep/2  sMean+sStep*3/2];  % set of contrasts 1 - 4
+
+% payment parameters
+convertionRate = 500; % in points
+showupFee = 7; % in pounds
+
+maxRT = 2;  % maximal response time
+timeITI = 1; % fixation cross time
+timeFeedback = 0.5; % how long is feedback shown? 
+
+% Set up Psychtoolbox
+PsychDefaultSetup(2);
+
+% Skeep sync tests (they don't work properly on Macs)
+Screen('Preference', 'SkipSyncTests', 1);
+FlushEvents;
+%HideCursor;
+
+% Set up the screen
+screenNumber = min(Screen('Screens'));
+white = WhiteIndex(screenNumber);
+black = BlackIndex(screenNumber);
+[wPtr, rect] = PsychImaging('OpenWindow', screenNumber, black);
+
+% Set up the keyboard
+KbName('UnifyKeyNames');
+leftKey = KbName('LeftArrow');
+rightKey = KbName('RightArrow');
+
+% Set up the frame size and color
+frameSize = 5;  % in pixels
+frameColor = [1, 1, 1];
+frameColorCorrect = [0.2, 1, 0.2];
+frameColorWrong = [1, 0.2, 0.2];
+
+% Set up the text
+Screen('TextSize', wPtr, 60);
+Screen('TextColor', wPtr, white);
+
+% Reward positions on the screen
+yReward = rect(4)*3/4;
+xRewardLeft = rect(3)/4;
+xRewardRight = rect(3)*3/4;
+
+% Initial stimulus params for the gabor patch:
+gaborSize = 323;
+res = 1*[gaborSize gaborSize]; % size 
+phase = 0;  % the phase of the gabors sine grating in degrees.
+sc = 50.0; % the spatial constant of the gaussian hull function of the gabor, ie.  the "sigma" value in the exponential function.
+freq = .1; % its spatial frequency in cycles per pixel.
+aspectratio = 1.0;  % aspect ratio
+
+leftRect = CenterRectOnPoint([0, 0, res(1), res(2)], rect(3)/4, rect(4)/2);
+rightRect = CenterRectOnPoint([0, 0, res(1), res(2)], rect(3)*3/4, rect(4)/2);
+
+infoRect1 = CenterRectOnPoint([0, 0, res(1), res(2)], rect(3)/5, rect(4)/2);
+infoRect2 = CenterRectOnPoint([0, 0, res(1), res(2)], rect(3)*2/5, rect(4)/2);
+infoRect3 = CenterRectOnPoint([0, 0, res(1), res(2)], rect(3)*3/5, rect(4)/2);
+infoRect4 = CenterRectOnPoint([0, 0, res(1), res(2)], rect(3)*4/5, rect(4)/2);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PSYCHOMETRIC CURVE CALIBRATION FOR CONTRAST
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+data = CreatePsychometric(sMean,sStep); 
+
+for trial = 1:numTrials
+
+    % BLOCK START INFORMATION SCREEN
+    if data.trial(trial) == 1
+        Screen('TextSize', wPtr, 30);
+        
+        gabortex = CreateProceduralGabor(wPtr, gaborSize, gaborSize, 0, [0 0 0 0.0]);
+
+        Screen('FillRect', wPtr, black);
+        DrawFormattedText(wPtr, ['BLOCK ' num2str(data.block(trial))], 'center', 'center');
+        Screen('Flip', wPtr);
+        WaitSecs(3);
+
+        % calibrate the eye tracker
+        if eyeTracking
+            et.calibrate();
+            et.openFile(['sv' num2str(round(sessID/100000)) '_' num2str(data.block(trial)) '.edf']);
+            et.startRecording();
+            et.setRecordingMessage(sprintf('Salience study subj %d run %d', sessID, data.block(trial))); % displays a message on the eyetracker recording screen
+        end
+
+        % GET READY screen
+        Screen('FillRect', wPtr, black);
+        DrawFormattedText(wPtr, 'Get ready.', 'center', 'center');
+        Screen('Flip', wPtr);
+        WaitSecs(2);
+
+        % Draw the fixation before the trials start
+        Screen('FillRect', wPtr, black);
+        DrawFormattedText(wPtr, '+', 'center', 'center');
+        Screen('Flip', wPtr);
+        WaitSecs(timeITI);
+
+        %record block starting time
+        t0 = GetSecs;
+
+    end
+
+
+    tilts = [0 0];
+    contrasts = [data.contrast_left(trial) data.contrast_right(trial)];
+ 
+    % Build a procedural gabor texture for a gabor with a support of
+    % gaborSize x gaborSize pixels, and a RGB color offset of 0 (black background)
+    gabortex = CreateProceduralGabor(wPtr, gaborSize, gaborSize, 0, [0 0 0 0.0]);
+
+    % Draw the stimuli
+    Screen('DrawTexture', wPtr, gabortex, [], leftRect, 90+tilts(1), [], [], [], [],...
+         kPsychDontDoRotation, [phase+180, freq, sc, contrasts(1), aspectratio, 0, 0, 0]);
+
+    Screen('DrawTexture', wPtr, gabortex, [], rightRect, 90+tilts(2), [], [], [], [],...
+         kPsychDontDoRotation, [phase+180, freq, sc, contrasts(2), aspectratio, 0, 0, 0]);
+    Screen('Flip', wPtr);
+
+    % record stimuli onset time
+    data.onset(trial) = GetSecs - t0;
+
+    % Wait for a response
+    response = 0;
+    timer = 0;
+    while ~response && timer < maxRT
+        [keyIsDown, secs, keyCode] = KbCheck;
+        timer = GetSecs -  data.onset(trial) - t0;
+
+        if keyIsDown
+
+            % record response time 
+            data.rt(trial) = GetSecs - data.onset(trial) - t0;
+            data.response(trial) = GetSecs - t0;
+
+            if keyCode(leftKey)
+                response = 1;
+                selectedRect = leftRect;
+                
+
+                % was the choice correct?
+                if data.contrast_left(trial) >= data.contrast_right(trial)
+                    data.accuracy(trial) = 1;
+                    reward = 1;
+                    frameColorTrial = frameColorCorrect;
+                else 
+                    data.accuracy(trial) = 0;
+                    reward = 0;
+                    frameColorTrial = frameColorWrong;
+                end
+
+            elseif keyCode(rightKey)
+                response = 2;
+                selectedRect = rightRect;
+                xReward = xRewardRight;
+             
+                % was the choice correct?
+                 if data.contrast_left(trial) <= data.contrast_right(trial)
+                    data.accuracy(trial) = 1;
+                    reward = 1;
+                    frameColorTrial = frameColorCorrect;
+                else 
+                    data.accuracy(trial) = 0;
+                    reward = 0;
+                end
+            end
+        end
+    end
+
+    if response > 0
+        % Draw Gabors again
+        Screen('DrawTexture', wPtr, gabortex, [], leftRect, 90+tilts(1), [], [], [], [],...
+             kPsychDontDoRotation, [phase+180, freq, sc, contrasts(1), aspectratio, 0, 0, 0]);
+        Screen('DrawTexture', wPtr, gabortex, [], rightRect, 90+tilts(2), [], [], [], [],...
+             kPsychDontDoRotation, [phase+180, freq, sc, contrasts(2), aspectratio, 0, 0, 0]);
+
+        % Draw a frame around the selected Gabor
+        frameRect = selectedRect + [-frameSize, -frameSize, frameSize, frameSize];
+        Screen('FrameRect', wPtr, frameColor, frameRect, frameSize);
+
+        Screen('Flip', wPtr);
+
+        % Record feedback timing
+        data.feedback_onset(trial) = GetSecs - t0;
+
+    elseif response == 0
+        % NO RESPONSE
+        response = -999;
+        reward = 0;
+
+        Screen('FillRect', wPtr, black);
+        DrawFormattedText(wPtr, 'TOO LATE', 'center', 'center');
+        Screen('Flip', wPtr);
+    end
+
+    WaitSecs(timeFeedback);
+
+
+    % Draw the fixation cross during the inter-trial interval
+    Screen('FillRect', wPtr, black);
+    DrawFormattedText(wPtr, '+', 'center', 'center');
+    Screen('Flip', wPtr);
+
+    % Record the response and payoff
+    fprintf('Trial %d: %d\n', trial, response);
+
+    data.choice(trial) = response;
+    data.payoff(trial) = reward;
+
+    % Save data
+    save(['data/mat/data_' int2str(sessID) '.mat'],'data');
+
+    % Wait for a short inter-trial interval
+
+    if eyeTracking 
+        %the following section gets eyeposition data from the eye
+        %tracker and makes the subject stare at the cross for timeITI
+        timeonfix = 0;
+        fixstart = GetSecs;
+        while timeonfix < timeITI
+            evt = Eyelink('NewestFloatSample');
+            mx = evt.gx(eye_used+1); % +1 as we're accessing MATLAB array (Why?)
+            my = evt.gy(eye_used+1);
+
+            if mx<0.4*rect(3) || mx>0.6*rect(3) || my<0.35*rect(4) || my>0.65*rect(4)
+                fixstart = GetSecs;
+            end
+
+            timeonfix=GetSecs-fixstart;
+
+        end
+    else
+        WaitSecs(timeITI);
+    end
+
+    
+    % end of block
+    % write end run in eye tracker + close eye tracker
+    if data.btrial(trial) == 256
+        if eyeTracking
+            et.stopRecording();
+            et.closeFile();
+            et.receiveFile();
+            % move eye tracker file to right location
+           
+        end
+    end
+end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MAIN TASK
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Set up the dataframe
+data = CreateData(tiltsSet,contrastsSet);
+data.session_id = sessID*ones(size(data,1),1);
+
+if testTrials == 0
+    numTrials = size(data,1);
+else
+    numTrials = testTrials;
+end
+
+% Run the tutorial
+SalienceTutorial(wPtr,rect, tiltsSet,contrastsSet);
+
+% start the eye tracker
+    
+if eyeTracking
+    et = EyeTracker();
+    et.init(0, screenRect, false, []);
+    Eyelink('command', 'calibration_type = HV5');
+else
+    et=[];
+end
+
+
+% Loop through the trials
+for trial = 1:numTrials
+
+    % BLOCK START INFORMATION SCREEN
+    if data.btrial(trial) == 1
+        Screen('TextSize', wPtr, 30);
+        
+        gabortex = CreateProceduralGabor(wPtr, gaborSize, gaborSize, 0, [0 0 0 0.0]);
+
+        Screen('FillRect', wPtr, black);
+        DrawFormattedText(wPtr, ['BLOCK ' num2str(data.block(trial))], 'center', 'center');
+        Screen('Flip', wPtr);
+        WaitSecs(3);
+
+        % calibrate the eye tracker
+        if eyeTracking
+            et.calibrate();
+            et.openFile(['sv' num2str(round(sessID/100000)) '_' num2str(data.block(trial)) '.edf']);
+            et.startRecording();
+            et.setRecordingMessage(sprintf('Salience study subj %d run %d', sessID, data.block(trial))); % displays a message on the eyetracker recording screen
+        end
+
+        Screen('FillRect', wPtr, black);
+
+        if data.condition(trial) == 1
+
+            Screen('DrawTexture', wPtr, gabortex, [], infoRect1, 90+tiltsSet(2), [], [], [], [],...
+                 kPsychDontDoRotation, [phase+180, freq, sc, contrastsSet(1), aspectratio, 0, 0, 0]);
+            Screen('DrawTexture', wPtr, gabortex, [], infoRect2, 90+tiltsSet(2), [], [], [], [],...
+                 kPsychDontDoRotation, [phase+180, freq, sc, contrastsSet(2), aspectratio, 0, 0, 0]);
+            Screen('DrawTexture', wPtr, gabortex, [], infoRect3, 90+tiltsSet(4), [], [], [], [],...
+                 kPsychDontDoRotation, [phase+180, freq, sc, contrastsSet(3), aspectratio, 0, 0, 0]);
+            Screen('DrawTexture', wPtr, gabortex, [], infoRect4, 90+tiltsSet(4), [], [], [], [],...
+                 kPsychDontDoRotation, [phase+180, freq, sc, contrastsSet(4), aspectratio, 0, 0, 0]);
+
+            DrawFormattedText(wPtr, 'In this block, brighter patches give more points.', 'center', rect(4)*1.5/6);
+            DrawFormattedText(wPtr, 'Tilt does not matter.', 'center', rect(4)*2/6);
+
+        elseif data.condition(trial) == 2
+
+
+            Screen('DrawTexture', wPtr, gabortex, [], infoRect1, 90+tiltsSet(3), [], [], [], [],...
+                 kPsychDontDoRotation, [phase+180, freq, sc, contrastsSet(4), aspectratio, 0, 0, 0]);
+            Screen('DrawTexture', wPtr, gabortex, [], infoRect2, 90+tiltsSet(3), [], [], [], [],...
+                 kPsychDontDoRotation, [phase+180, freq, sc, contrastsSet(3), aspectratio, 0, 0, 0]);
+            Screen('DrawTexture', wPtr, gabortex, [], infoRect3, 90+tiltsSet(1), [], [], [], [],...
+                 kPsychDontDoRotation, [phase+180, freq, sc, contrastsSet(2), aspectratio, 0, 0, 0]);
+            Screen('DrawTexture', wPtr, gabortex, [], infoRect4, 90+tiltsSet(1), [], [], [], [],...
+                 kPsychDontDoRotation, [phase+180, freq, sc, contrastsSet(1), aspectratio, 0, 0, 0]);
+
+            DrawFormattedText(wPtr, 'In this block, darker patches give more points.', 'center', rect(4)*1.5/6);
+            DrawFormattedText(wPtr, 'Tilt does not matter.', 'center', rect(4)*2/6);
+
+        elseif data.condition(trial) == 3
+
+
+            Screen('DrawTexture', wPtr, gabortex, [], infoRect1, 90+tiltsSet(1), [], [], [], [],...
+                 kPsychDontDoRotation, [phase+180, freq, sc, contrastsSet(1), aspectratio, 0, 0, 0]);
+            Screen('DrawTexture', wPtr, gabortex, [], infoRect2, 90+tiltsSet(2), [], [], [], [],...
+                 kPsychDontDoRotation, [phase+180, freq, sc, contrastsSet(1), aspectratio, 0, 0, 0]);
+            Screen('DrawTexture', wPtr, gabortex, [], infoRect3, 90+tiltsSet(3), [], [], [], [],...
+                 kPsychDontDoRotation, [phase+180, freq, sc, contrastsSet(3), aspectratio, 0, 0, 0]);
+            Screen('DrawTexture', wPtr, gabortex, [], infoRect4, 90+tiltsSet(4), [], [], [], [],...
+                 kPsychDontDoRotation, [phase+180, freq, sc, contrastsSet(3), aspectratio, 0, 0, 0]);
+
+            DrawFormattedText(wPtr, 'In this block, patches tilted more to the left give more points.', 'center', rect(4)*1.5/6);
+            DrawFormattedText(wPtr, 'Brightness does not matter.', 'center', rect(4)*2/6);
+
+        elseif data.condition(trial) == 4
+
+
+            Screen('DrawTexture', wPtr, gabortex, [], infoRect1, 90+tiltsSet(4), [], [], [], [],...
+                 kPsychDontDoRotation, [phase+180, freq, sc, contrastsSet(4), aspectratio, 0, 0, 0]);
+            Screen('DrawTexture', wPtr, gabortex, [], infoRect2, 90+tiltsSet(3), [], [], [], [],...
+                 kPsychDontDoRotation, [phase+180, freq, sc, contrastsSet(4), aspectratio, 0, 0, 0]);
+            Screen('DrawTexture', wPtr, gabortex, [], infoRect3, 90+tiltsSet(2), [], [], [], [],...
+                 kPsychDontDoRotation, [phase+180, freq, sc, contrastsSet(2), aspectratio, 0, 0, 0]);
+            Screen('DrawTexture', wPtr, gabortex, [], infoRect4, 90+tiltsSet(1), [], [], [], [],...
+                 kPsychDontDoRotation, [phase+180, freq, sc, contrastsSet(2), aspectratio, 0, 0, 0]);
+
+            DrawFormattedText(wPtr, 'In this block, patches tilted more to the right give more points.', 'center', rect(4)*1.5/6);
+            DrawFormattedText(wPtr, 'Brightness does not matter.', 'center', rect(4)*2/6);
+
+        end
+
+        DrawFormattedText(wPtr, '1', rect(3)*1/5, rect(4)*4/6);
+        DrawFormattedText(wPtr, '2', rect(3)*2/5, rect(4)*4/6);
+        DrawFormattedText(wPtr, '3', rect(3)*3/5, rect(4)*4/6);
+        DrawFormattedText(wPtr, '4', rect(3)*4/5, rect(4)*4/6);
+
+        DrawFormattedText(wPtr, 'Press any key when you are ready', 'center', rect(4)*5/6);
+
+        Screen('Flip', wPtr);     
+        WaitSecs(3);
+        KbWait;
+        Screen('TextSize', wPtr, 60);
+
+        % Draw the fixation before the trials start
+        Screen('FillRect', wPtr, black);
+        DrawFormattedText(wPtr, 'Get ready.', 'center', 'center');
+        Screen('Flip', wPtr);
+        WaitSecs(2);
+
+        % Draw the fixation before the trials start
+        Screen('FillRect', wPtr, black);
+        DrawFormattedText(wPtr, '+', 'center', 'center');
+        Screen('Flip', wPtr);
+        WaitSecs(timeITI);
+
+        %record block starting time
+        t0 = GetSecs;
+
+    end
+
+
+    tilts = [data.tilt_left(trial) data.tilt_right(trial)];
+    contrasts = [data.contrast_left(trial) data.contrast_right(trial)];
+    rewards = [data.reward_left(trial) data.reward_right(trial)];
+
+    % Build a procedural gabor texture for a gabor with a support of
+    % gaborSize x gaborSize pixels, and a RGB color offset of 0 (black background)
+    gabortex = CreateProceduralGabor(wPtr, gaborSize, gaborSize, 0, [0 0 0 0.0]);
+
+    % Draw the stimuli
+    Screen('DrawTexture', wPtr, gabortex, [], leftRect, 90+tilts(1), [], [], [], [],...
+         kPsychDontDoRotation, [phase+180, freq, sc, contrasts(1), aspectratio, 0, 0, 0]);
+
+    Screen('DrawTexture', wPtr, gabortex, [], rightRect, 90+tilts(2), [], [], [], [],...
+         kPsychDontDoRotation, [phase+180, freq, sc, contrasts(2), aspectratio, 0, 0, 0]);
+    Screen('Flip', wPtr);
+
+    % record stimuli onset time
+    data.onset(trial) = GetSecs - t0;
+
+    % Wait for a response
+    response = 0;
+    timer = 0;
+    while ~response && timer < maxRT
+        [keyIsDown, secs, keyCode] = KbCheck;
+        timer = GetSecs -  data.onset(trial) - t0;
+
+        if keyIsDown
+
+            % record response time 
+            data.rt(trial) = GetSecs - data.onset(trial) - t0;
+            data.response(trial) = GetSecs - t0;
+
+            if keyCode(leftKey)
+                response = 1;
+                selectedRect = leftRect;
+                xReward = xRewardLeft;
+                reward = rewards(1);
+
+                % was the choice correct?
+                if data.reward_left(trial) >= data.reward_right(trial)
+                    data.accuracy(trial) = 1;
+                else 
+                    data.accuracy(trial) = 0;
+                end
+
+            elseif keyCode(rightKey)
+                response = 2;
+                selectedRect = rightRect;
+                xReward = xRewardRight;
+                reward = rewards(2);
+
+                % was the choice correct?
+                 if data.reward_left(trial) <= data.reward_right(trial)
+                    data.accuracy(trial) = 1;
+                else 
+                    data.accuracy(trial) = 0;
+                end
+            end
+        end
+    end
+
+    if response > 0
+        % Draw Gabors again
+        Screen('DrawTexture', wPtr, gabortex, [], leftRect, 90+tilts(1), [], [], [], [],...
+             kPsychDontDoRotation, [phase+180, freq, sc, contrasts(1), aspectratio, 0, 0, 0]);
+        Screen('DrawTexture', wPtr, gabortex, [], rightRect, 90+tilts(2), [], [], [], [],...
+             kPsychDontDoRotation, [phase+180, freq, sc, contrasts(2), aspectratio, 0, 0, 0]);
+
+        % Draw reward
+        DrawFormattedText(wPtr, int2str(reward), xReward, yReward);
+
+        % Draw a frame around the selected Gabor
+        frameRect = selectedRect + [-frameSize, -frameSize, frameSize, frameSize];
+        Screen('FrameRect', wPtr, frameColor, frameRect, frameSize);
+
+        Screen('Flip', wPtr);
+
+        % Record feedback timing
+        data.feedback_onset(trial) = GetSecs - t0;
+
+    elseif response == 0
+        % NO RESPONSE
+        response = -999;
+        reward = 0;
+
+        Screen('FillRect', wPtr, black);
+        DrawFormattedText(wPtr, 'TOO LATE', 'center', 'center');
+        Screen('Flip', wPtr);
+    end
+
+    WaitSecs(timeFeedback);
+
+
+    % Draw the fixation cross during the inter-trial interval
+    Screen('FillRect', wPtr, black);
+    DrawFormattedText(wPtr, '+', 'center', 'center');
+    Screen('Flip', wPtr);
+
+    % Record the response and payoff
+    fprintf('Trial %d: %d\n', trial, response);
+
+    data.choice(trial) = response;
+    data.payoff(trial) = reward;
+
+    % Save data
+    save(['data/mat/data_' int2str(sessID) '.mat'],'data');
+
+    % Wait for a short inter-trial interval
+
+    if eyeTracking 
+        %the following section gets eyeposition data from the eye
+        %tracker and makes the subject stare at the cross for timeITI
+        timeonfix = 0;
+        fixstart = GetSecs;
+        while timeonfix < timeITI
+            evt = Eyelink('NewestFloatSample');
+            mx = evt.gx(eye_used+1); % +1 as we're accessing MATLAB array (Why?)
+            my = evt.gy(eye_used+1);
+
+            if mx<0.4*rect(3) || mx>0.6*rect(3) || my<0.35*rect(4) || my>0.65*rect(4)
+                fixstart = GetSecs;
+            end
+
+            timeonfix=GetSecs-fixstart;
+
+        end
+    else
+        WaitSecs(timeITI);
+    end
+
+    
+    % end of block
+    % write end run in eye tracker + close eye tracker
+    if data.btrial(trial) == 256
+        if eyeTracking
+            et.stopRecording();
+            et.closeFile();
+            et.receiveFile();
+            % move eye tracker file to right location
+           
+        end
+    end
+
+
+end
+
+
+writetable(data,['data/csv/data_' int2str(sessID) '.csv']);
+
+ % Final screen
+ Screen('FillRect', wPtr, black);
+
+ payment = round(sum(data.payoff)/convertionRate);
+ DrawFormattedText(wPtr,['This is the end of the experiment.' '\n\n' ' Your total bonus in points is ' num2str(sum(data.payoff)) '.'...
+      '\n\n' 'Your bonus payment is in pounds is £' num2str(payment) '.' ...
+      '\n\n' 'Your total payment is £' num2str(payment + showupFee) '.'],...
+     'center','center');
+ Screen('Flip',wPtr);
+ WaitSecs(15);
+ KbWait;
+
+
+
+% Close the screen and clear the workspace
+sca;
