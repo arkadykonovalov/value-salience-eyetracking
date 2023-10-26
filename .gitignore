@@ -2,3 +2,5 @@
 *.csv
 *.edf
 *.mat
+*.asv
+data/.DS_Store
